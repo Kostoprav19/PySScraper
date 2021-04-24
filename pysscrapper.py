@@ -7,7 +7,7 @@ def createList(uls):
     soup = BeautifulSoup(req.text, 'html.parser')
     firstElements = soup.find_all(class_='am')
     otherElements = soup.find_all(class_='msga2-o pp6')
-    # test = soup.find_all(class_='msg2')
+     test = soup.find_all(class_='msg2')
     # print(*test, sep = "\n")
     list = [{} for sub in range(len(firstElements))]
     elCount = 7
