@@ -1,14 +1,28 @@
+import sys
+
 import requests
+import smtplib
+import ssl
 from bs4 import BeautifulSoup
+from tabulate import tabulate
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 
-def createList(uls):
+def filter_flats(item):
+    if item['rooms'] >= 3 \
+            and (item['type'] == 'Jaun.' or item['type'] == 'Specpr.') \
+            and not 'Kaivas 50' in item['street'] \
+            and item['m2'] > 70:
+        return True
+    else:
+        return False
+
+def getList(url):
     req = requests.get(url)
     soup = BeautifulSoup(req.text, 'html.parser')
     firstElements = soup.find_all(class_='am')
     otherElements = soup.find_all(class_='msga2-o pp6')
-     test = soup.find_all(class_='msg2')
-    # print(*test, sep = "\n")
     list = [{} for sub in range(len(firstElements))]
     elCount = 7
 
@@ -25,8 +39,53 @@ def createList(uls):
 
     return list
 
+def formatTable(myList):
+    html = """
+    <html><body>
+    <p>Look:</p>
+    {table}
+    </body></html>
+    """
+    html = html.format(table=tabulate(myList, headers="keys", tablefmt="html"))
 
-url = 'https://www.ss.lv/lv/real-estate/flats/riga/mezhciems/sell/'
-list = createList(url)
-# print(len(list))
-print(*list, sep="\n")
+    return html
+
+def sendEmail(name, text):
+    smtp_server = "smtp.gmail.com"
+    port = 465  # For SSL
+    password = "myPassword"
+    email = "myemail@example.com"
+
+    message = MIMEMultipart("alternative", None, [MIMEText(text), MIMEText(text, 'html')])
+    message['Subject'] = "Today's hot deals " + name
+    message['From'] = "PySScrapper"
+    message['To'] = email
+
+    context = ssl.create_default_context()
+    with smtplib.SMTP_SSL(smtp_server, port, context=context) as server:
+        server.login(email, password)
+        server.send_message(message)
+
+sections =[
+  {
+    "name":   "Mežciems",
+    "url":    "https://www.ss.lv/lv/real-estate/flats/riga/mezhciems/sell/",
+    "filter": "filter_flats"
+  },
+  {
+    "name":   "Jugla",
+    "url":    "https://www.ss.lv/lv/real-estate/flats/riga/yugla/sell/",
+    "filter": "filter_flats"
+  },
+  {
+    "name":   "Purvciems",
+    "url":    "https://www.ss.lv/lv/real-estate/flats/riga/purvciems/sell/",
+    "filter": "filter_flats"
+  }
+]
+thismodule = sys.modules[__name__]
+
+for item in sections:
+    myFilter = getattr(thismodule, item["filter"])
+    myList = list(filter(myFilter, getList(item["url"])))
+    sendEmail(item["name"], formatTable(myList))
